@@ -1,0 +1,19 @@
+# opencode tooling (never part of the published site)
+.opencode/
+*.skill
+
+# Persoonsgegevens: nooit committen
+*.xlsx
+raw/
+*.csv
+*.pyc
+__pycache__/
+
+# Niet-versleutelde pagina's (bevatten namen in platte tekst)
+/2027 TC Ranking overzicht.html
+/2027 Indeling.html
+
+# De GitHub Pages build in docs/ wordt alleen versleuteld gemaakt:
+#   python tc_ranking_overview.py --encrypt --docs
+!docs/index.html
+!docs/indeling.html
