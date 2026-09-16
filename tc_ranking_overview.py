@@ -401,6 +401,58 @@ BASE_CSS = r"""
   .lock-card input:focus { border-color: #6b8cff; box-shadow: 0 0 0 3px rgba(107,140,255,.18); }
   .lock-card .btn { width: 100%; padding: 10px; }
   .lock-error { color: #e0483b; font-size: 12.5px; min-height: 16px; margin: 10px 0 0; }
+  .info-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .info-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 11px 4px 5px;
+    cursor: pointer;
+  }
+  .info-btn:hover { border-color: #6b8cff; background: #f4f7ff; }
+  .info-icon {
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: #3b6fd4;
+    color: #fff;
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(20,30,45,.45);
+  }
+  .modal[hidden] { display: none; }
+  .modal-card {
+    width: min(440px, 100%);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 22px 22px 18px;
+  }
+  .modal-card h2 { margin: 0 0 8px; font-size: 17px; }
+  .modal-card p { margin: 0 0 18px; font-size: 13.5px; line-height: 1.55; color: #3a4553; }
+  .modal-card .btn { width: 100%; }
   .lock-card.shake { animation: shake .3s; }
   @keyframes shake {
     0%, 100% { transform: translateX(0); }
@@ -455,6 +507,54 @@ UNLOCK_HTML = r"""
     <p class="lock-error" id="lock-error"></p>
   </form>
 </div>
+"""
+
+INFO_HTML = r"""
+<div class="modal" id="info-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="info-title">
+    <h2 id="info-title"></h2>
+    <p id="info-body"></p>
+    <button class="btn primary" id="info-close" type="button">Sluiten</button>
+  </div>
+</div>
+"""
+
+INFO_JS = r"""
+const INFO_TEXTS = {
+  sd: {
+    title: 'SD',
+    body: 'SD is de gemiddelde hcp (het dagresultaat) in de Q-kaarten (qualifying-wedstrijden) over het afgelopen jaar.'
+  },
+  rating: {
+    title: 'Rating',
+    body: 'Rating is een scoresysteem voor de prestatie tijdens de afgelopen competitie. Je krijgt punten voor gewonnen wedstrijden en aftrek voor verloren wedstrijden. Op basis van het verschil in hcp van de tegenstander krijgt de gewonnen of verloren wedstrijd een gewicht.'
+  }
+};
+
+(function () {
+  const modal = document.getElementById('info-modal');
+  if (!modal) return;
+  const titleEl = document.getElementById('info-title');
+  const bodyEl = document.getElementById('info-body');
+
+  function open(key) {
+    const info = INFO_TEXTS[key];
+    if (!info) return;
+    titleEl.textContent = info.title;
+    bodyEl.textContent = info.body;
+    modal.hidden = false;
+  }
+  function close() { modal.hidden = true; }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.info-btn'), function (btn) {
+    btn.addEventListener('click', function () { open(btn.dataset.info); });
+  });
+  document.getElementById('info-close').addEventListener('click', close);
+  modal.addEventListener('click', function (ev) { if (ev.target === modal) close(); });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !modal.hidden) close();
+  });
+})();
 """
 
 UNLOCK_JS = r"""
@@ -551,6 +651,10 @@ OVERVIEW_TEMPLATE = r"""<!DOCTYPE html>
     <h1>2027 TC Ranking &middot; overzicht</h1>
     <p>Kaarten gegroepeerd per team in 2026 &middot; naam, aantal holes, gemiddeld SD en rating 2026</p>
   </div>
+  <div class="info-group">
+    <button type="button" class="info-btn" data-info="sd"><span class="info-icon">i</span>SD</button>
+    <button type="button" class="info-btn" data-info="rating"><span class="info-icon">i</span>Rating</button>
+  </div>
   <div class="legend" id="legend"></div>
   <div class="spacer"></div>
   <div class="stats" id="stats"></div>
@@ -566,8 +670,10 @@ OVERVIEW_TEMPLATE = r"""<!DOCTYPE html>
 </header>
 <main class="board" id="board"></main>
 __UNLOCK_HTML__
+__INFO_HTML__
 <script id="payload" type="application/json">__DATA__</script>
 <script>__UNLOCK_JS__</script>
+<script>__INFO_JS__</script>
 <script>
 const PAYLOAD = JSON.parse(document.getElementById('payload').textContent);
 const board = document.getElementById('board');
@@ -794,6 +900,10 @@ INDELING_TEMPLATE = r"""<!DOCTYPE html>
     <h1>2027 Indeling</h1>
     <p>Sleep kaarten tussen de teams om de nieuwe indeling te maken &middot; dubbelklik op een teamnaam om te hernoemen</p>
   </div>
+  <div class="info-group">
+    <button type="button" class="info-btn" data-info="sd"><span class="info-icon">i</span>SD</button>
+    <button type="button" class="info-btn" data-info="rating"><span class="info-icon">i</span>Rating</button>
+  </div>
   <div class="spacer"></div>
   <div class="stats" id="stats"></div>
   <div class="tools">
@@ -809,8 +919,10 @@ INDELING_TEMPLATE = r"""<!DOCTYPE html>
 </header>
 <main class="board" id="board"></main>
 __UNLOCK_HTML__
+__INFO_HTML__
 <script id="payload" type="application/json">__DATA__</script>
 <script>__UNLOCK_JS__</script>
+<script>__INFO_JS__</script>
 <script>
 const PAYLOAD = JSON.parse(document.getElementById('payload').textContent);
 
@@ -1318,6 +1430,8 @@ def render_pages(payload_script: str, docs: bool) -> None:
         "__DATA__": payload_script,
         "__UNLOCK_HTML__": UNLOCK_HTML,
         "__UNLOCK_JS__": UNLOCK_JS,
+        "__INFO_HTML__": INFO_HTML,
+        "__INFO_JS__": INFO_JS,
     }
 
     overview = OVERVIEW_TEMPLATE.replace("__CSS__", BASE_CSS)
