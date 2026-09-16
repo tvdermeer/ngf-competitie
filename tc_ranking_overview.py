@@ -29,6 +29,7 @@ Encryption needs Node.js on the build machine (used only at build time).
 from __future__ import annotations
 
 import argparse
+import csv
 import getpass
 import json
 import os
@@ -41,6 +42,7 @@ import openpyxl
 
 ROOT = Path(__file__).resolve().parent
 XLSX = ROOT / "2027 TC Ranking 14092026.xlsx"
+SUMMARY_CSV = ROOT / "tc_ranking_summary.csv"
 ENCRYPTOR = ROOT / "encrypt_payload.js"
 DOCS_DIR = ROOT / "docs"
 PBKDF2_ITERATIONS = 600000
@@ -121,7 +123,26 @@ def find_header(ws):
     raise SystemExit("Kon de kopregel (Lidcode) niet vinden in blad 'Ranking'.")
 
 
-def load_players():
+def load_ratings():
+    """Rating (Rt) per player from the NGF summary, keyed by lidcode."""
+    if not SUMMARY_CSV.exists():
+        print(f"Let op: {SUMMARY_CSV.name} niet gevonden; rating blijft leeg.")
+        return {}
+    ratings = {}
+    with SUMMARY_CSV.open(encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh, delimiter=";"):
+            code = (row.get("Lidcode") or "").strip()
+            raw = (row.get("Rating (Rt)") or "").strip().replace(",", ".")
+            if not code or not raw:
+                continue
+            try:
+                ratings[code] = round(float(raw), 2)
+            except ValueError:
+                continue
+    return ratings
+
+
+def load_players(ratings):
     wb = openpyxl.load_workbook(XLSX, data_only=True)
     ws = wb[SHEET]
     header_idx, header = find_header(ws)
@@ -154,6 +175,7 @@ def load_players():
             "holes": parse_holes(row[idx_holes]),
             "team": team,
             "sd": sd,
+            "rating": ratings.get(code),
         })
     return players
 
@@ -527,7 +549,7 @@ OVERVIEW_TEMPLATE = r"""<!DOCTYPE html>
 <header class="top">
   <div class="title">
     <h1>2027 TC Ranking &middot; overzicht</h1>
-    <p>Kaarten gegroepeerd per team in 2026 &middot; naam, aantal holes en gemiddeld SD</p>
+    <p>Kaarten gegroepeerd per team in 2026 &middot; naam, aantal holes, gemiddeld SD en rating 2026</p>
   </div>
   <div class="legend" id="legend"></div>
   <div class="spacer"></div>
@@ -589,6 +611,28 @@ function fmtSd(sd) {
   return sd.toFixed(1).replace('.', ',');
 }
 
+function fmtRating(rating) {
+  if (rating === null || rating === undefined) return null;
+  const v = Math.round(rating * 100) / 100;
+  let body = Math.abs(v).toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  if (body === '') body = '0';
+  const sign = v > 0 ? '+' : (v < 0 ? '-' : '');
+  return sign + body.replace('.', ',');
+}
+
+function ratingColors(rating) {
+  const v = Math.round(rating * 100) / 100;
+  if (v === 0) return { bg: '#f2f4f7', fg: '#6b7480', bd: '#e4e8ee' };
+  const hue = v > 0 ? 140 : 0;
+  const mag = Math.min(1, Math.abs(v) / 7);
+  const bgL = 94 - mag * 9;
+  return {
+    bg: 'hsl(' + hue + ' 70% ' + bgL + '%)',
+    fg: 'hsl(' + hue + ' 62% ' + (30 - mag * 4) + '%)',
+    bd: 'hsl(' + hue + ' 58% ' + (bgL - 9) + '%)'
+  };
+}
+
 function makeCard(p) {
   const card = document.createElement('div');
   card.className = 'card';
@@ -627,6 +671,22 @@ function makeCard(p) {
     sd.title = 'Gemiddeld SD ' + p.sd;
   }
   meta.appendChild(sd);
+
+  const rt = document.createElement('span');
+  const rval = fmtRating(p.rating);
+  if (rval === null) {
+    rt.className = 'badge sd none';
+    rt.textContent = 'Rating n.v.t.';
+  } else {
+    rt.className = 'badge sd';
+    const rc = ratingColors(p.rating);
+    rt.style.setProperty('--sd-bg', rc.bg);
+    rt.style.setProperty('--sd-fg', rc.fg);
+    rt.style.setProperty('--sd-bd', rc.bd);
+    rt.textContent = 'Rating ' + rval;
+    rt.title = 'Rating 2026 (Rt) ' + p.rating;
+  }
+  meta.appendChild(rt);
 
   card.appendChild(meta);
   return card;
@@ -810,6 +870,28 @@ function fmtSd(sd) {
   return sd.toFixed(1).replace('.', ',');
 }
 
+function fmtRating(rating) {
+  if (rating === null || rating === undefined) return null;
+  const v = Math.round(rating * 100) / 100;
+  let body = Math.abs(v).toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  if (body === '') body = '0';
+  const sign = v > 0 ? '+' : (v < 0 ? '-' : '');
+  return sign + body.replace('.', ',');
+}
+
+function ratingColors(rating) {
+  const v = Math.round(rating * 100) / 100;
+  if (v === 0) return { bg: '#f2f4f7', fg: '#6b7480', bd: '#e4e8ee' };
+  const hue = v > 0 ? 140 : 0;
+  const mag = Math.min(1, Math.abs(v) / 7);
+  const bgL = 94 - mag * 9;
+  return {
+    bg: 'hsl(' + hue + ' 70% ' + bgL + '%)',
+    fg: 'hsl(' + hue + ' 62% ' + (30 - mag * 4) + '%)',
+    bd: 'hsl(' + hue + ' 58% ' + (bgL - 9) + '%)'
+  };
+}
+
 function defaultState() {
   return {
     version: 1,
@@ -920,6 +1002,22 @@ function makeCard(p, laneId) {
     sd.title = 'Gemiddeld SD ' + p.sd;
   }
   meta.appendChild(sd);
+
+  const rt = document.createElement('span');
+  const rval = fmtRating(p.rating);
+  if (rval === null) {
+    rt.className = 'badge sd none';
+    rt.textContent = 'Rating n.v.t.';
+  } else {
+    rt.className = 'badge sd';
+    const rc = ratingColors(p.rating);
+    rt.style.setProperty('--sd-bg', rc.bg);
+    rt.style.setProperty('--sd-fg', rc.fg);
+    rt.style.setProperty('--sd-bd', rc.bd);
+    rt.textContent = 'Rating ' + rval;
+    rt.title = 'Rating 2026 (Rt) ' + p.rating;
+  }
+  meta.appendChild(rt);
 
   card.appendChild(meta);
 
@@ -1254,7 +1352,8 @@ def main():
             "Weiger een niet-versleutelde docs-build te maken: GitHub Pages is openbaar.\n"
             "Gebruik --encrypt, of --force-plain-docs voor lokaal testen.")
 
-    players = load_players()
+    ratings = load_ratings()
+    players = load_players(ratings)
     lanes = build_lanes(players)
     data = {"players": players, "lanes": lanes}
     plaintext = json.dumps(data, ensure_ascii=False)
