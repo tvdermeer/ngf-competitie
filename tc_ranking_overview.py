@@ -558,7 +558,13 @@ const INFO_TEXTS = {
 """
 
 UNLOCK_JS = r"""
-const SESSION_KEY = 'ngf-tc-unlocked-v1';
+const SESSION_PREFIX = 'ngf-tc-unlocked-v1';
+
+// Tie the cached copy to the exact build, so a rebuild never serves stale data.
+function sessionKey(payload) {
+  const tag = payload.enc ? (payload.enc.ct || '').slice(0, 32) : 'plain';
+  return SESSION_PREFIX + ':' + tag;
+}
 
 function b64ToBuf(b64) {
   const bin = atob(b64);
@@ -594,9 +600,10 @@ function hideLock() {
 async function unlockFlow(payload, onReady) {
   if (!payload.enc) { onReady(payload.plain); return; }
 
-  const cached = sessionStorage.getItem(SESSION_KEY);
+  const key = sessionKey(payload);
+  const cached = sessionStorage.getItem(key);
   if (cached) {
-    try { onReady(JSON.parse(cached)); return; } catch (e) { sessionStorage.removeItem(SESSION_KEY); }
+    try { onReady(JSON.parse(cached)); return; } catch (e) { sessionStorage.removeItem(key); }
   }
 
   if (!window.crypto || !crypto.subtle) {
@@ -620,7 +627,7 @@ async function unlockFlow(payload, onReady) {
     btn.disabled = true;
     try {
       const data = await decryptPayload(payload.enc, pw.value);
-      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+      try { sessionStorage.setItem(key, JSON.stringify(data)); } catch (e) { /* ignore */ }
       hideLock();
       onReady(data);
     } catch (e) {
