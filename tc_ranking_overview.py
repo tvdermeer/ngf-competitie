@@ -36,14 +36,36 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import openpyxl
 
 ROOT = Path(__file__).resolve().parent
-XLSX = ROOT / "2027 TC Ranking 14092026.xlsx"
 SUMMARY_CSV = ROOT / "tc_ranking_summary.csv"
 ENCRYPTOR = ROOT / "encrypt_payload.js"
+XLSX_GLOB = "2027 TC Ranking *.xlsx"
+
+
+def find_xlsx():
+    """Newest "2027 TC Ranking <DDMMYYYY>.xlsx" in the project folder."""
+    best = None
+    best_key = None
+    for path in ROOT.glob(XLSX_GLOB):
+        match = re.search(r"(\d{8})", path.stem)
+        key = None
+        if match:
+            try:
+                key = datetime.strptime(match.group(1), "%d%m%Y")
+            except ValueError:
+                key = None
+        if key is None:
+            key = datetime.fromtimestamp(path.stat().st_mtime)
+        if best_key is None or key > best_key:
+            best_key, best = key, path
+    if best is None:
+        raise SystemExit(f"Geen '{XLSX_GLOB}' bestand gevonden.")
+    return best
 DOCS_DIR = ROOT / "docs"
 PBKDF2_ITERATIONS = 600000
 
@@ -142,8 +164,8 @@ def load_ratings():
     return ratings
 
 
-def load_players(ratings):
-    wb = openpyxl.load_workbook(XLSX, data_only=True)
+def load_players(ratings, xlsx_path):
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     ws = wb[SHEET]
     header_idx, header = find_header(ws)
 
@@ -164,7 +186,7 @@ def load_players(ratings):
         team = team or NO_TEAM_LABEL
         sd = parse_sd(row[idx_sd])
         code = (str(row[idx_code]).strip() if row[idx_code] is not None else "")
-        key = (code, name, team, sd)
+        key = code if code else (name, team, sd)
         if key in seen:
             continue
         seen.add(key)
@@ -1466,6 +1488,8 @@ def main():
                         help="schrijf docs/index.html en docs/indeling.html voor GitHub Pages")
     parser.add_argument("--force-plain-docs", action="store_true",
                         help="sta een NIET-versleutelde docs-build toe (niet voor publicatie)")
+    parser.add_argument("--xlsx", default=None,
+                        help="pad naar het ranking .xlsx bestand (standaard: nieuwste in de map)")
     args = parser.parse_args()
 
     if args.docs and not (args.encrypt or args.password) and not args.force_plain_docs:
@@ -1473,8 +1497,10 @@ def main():
             "Weiger een niet-versleutelde docs-build te maken: GitHub Pages is openbaar.\n"
             "Gebruik --encrypt, of --force-plain-docs voor lokaal testen.")
 
+    xlsx_path = Path(args.xlsx) if args.xlsx else find_xlsx()
+    print(f"Rankingbestand: {xlsx_path.name}")
     ratings = load_ratings()
-    players = load_players(ratings)
+    players = load_players(ratings, xlsx_path)
     lanes = build_lanes(players)
     data = {"players": players, "lanes": lanes}
     plaintext = json.dumps(data, ensure_ascii=False)
