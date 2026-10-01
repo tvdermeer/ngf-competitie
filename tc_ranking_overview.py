@@ -374,6 +374,26 @@ BASE_CSS = r"""
   .holes { background: var(--hole-bg, #eef1f5); color: var(--hole-fg, #4a5563); border: 1px solid var(--hole-bd, #dde2e8); }
   .sd { background: var(--sd-bg); color: var(--sd-fg); border: 1px solid var(--sd-bd); }
   .sd.none { background: #f2f4f7; color: #98a1ac; border-color: #e6e9ee; }
+  .spare-line {
+    position: relative;
+    height: 0;
+    border-top: 2px dotted #b6bfca;
+    margin: 8px 2px 10px;
+  }
+  .spare-line::after {
+    content: 'reserve';
+    position: absolute;
+    top: -9px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    padding: 0 7px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: #aab3be;
+  }
   .empty { color: var(--muted); font-size: 13px; padding: 20px 12px; text-align: center; }
   .legend { display: flex; gap: 12px; align-items: center; font-size: 11.5px; color: var(--muted); flex-wrap: wrap; }
   .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
@@ -769,6 +789,14 @@ function ratingColors(rating) {
   };
 }
 
+const TEAM_SIZE = 6;
+
+function makeSpareLine() {
+  const line = document.createElement('div');
+  line.className = 'spare-line';
+  return line;
+}
+
 function makeCard(p) {
   const card = document.createElement('div');
   card.className = 'card';
@@ -859,13 +887,19 @@ function render() {
       if (av !== bv) return mode === 'sd-desc' ? bv - av : av - bv;
       return a.name.localeCompare(b.name, 'nl');
     });
-    for (const p of sorted) cards.appendChild(makeCard(p));
+    let placed = 0;
+    for (const p of sorted) {
+      cards.appendChild(makeCard(p));
+      placed++;
+      if (placed === TEAM_SIZE) cards.appendChild(makeSpareLine());
+    }
     if (!sorted.length) {
       const empty = document.createElement('div');
       empty.className = 'empty';
       empty.textContent = 'Geen spelers';
       cards.appendChild(empty);
     }
+    if (placed < TEAM_SIZE) cards.appendChild(makeSpareLine());
     section.appendChild(cards);
     if (term && !players.length) section.classList.add('hidden');
     board.appendChild(section);
@@ -1033,6 +1067,14 @@ function ratingColors(rating) {
     fg: 'hsl(' + hue + ' 62% ' + (30 - mag * 4) + '%)',
     bd: 'hsl(' + hue + ' 58% ' + (bgL - 9) + '%)'
   };
+}
+
+const TEAM_SIZE = 6;
+
+function makeSpareLine() {
+  const line = document.createElement('div');
+  line.className = 'spare-line';
+  return line;
 }
 
 function defaultState() {
@@ -1238,13 +1280,16 @@ function render() {
 
     const cards = document.createElement('div');
     cards.className = 'cards';
+    let placed = 0;
     for (const pid of lane.players) {
       const p = PLAYERS.get(pid);
       if (!p) continue;
       const card = makeCard(p, lane.id);
       if (term && p.name.toLowerCase().indexOf(term) === -1) card.classList.add('dimmed');
       cards.appendChild(card);
+      placed++;
       assigned++;
+      if (placed === TEAM_SIZE) cards.appendChild(makeSpareLine());
     }
     if (!lane.players.length) {
       const empty = document.createElement('div');
@@ -1252,6 +1297,7 @@ function render() {
       empty.textContent = 'Sleep hier een kaart';
       cards.appendChild(empty);
     }
+    if (placed < TEAM_SIZE) cards.appendChild(makeSpareLine());
     section.appendChild(cards);
     board.appendChild(section);
   }
