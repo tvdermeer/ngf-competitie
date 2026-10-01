@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import csv
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -957,7 +958,8 @@ const PAYLOAD = JSON.parse(document.getElementById('payload').textContent);
 
 function start(DATA) {
 const PLAYERS = new Map(DATA.players.map(p => [p.id, p]));
-const STORAGE_KEY = 'ngf-indeling-2027-v1';
+// Keyed by the data build so an updated ranking never reuses a stale layout.
+const STORAGE_KEY = 'ngf-indeling-2027-v1:' + (DATA.build || 'dev');
 
 const board = document.getElementById('board');
 const q = document.getElementById('q');
@@ -1070,11 +1072,15 @@ function normalize(raw) {
     lanes.push({ id: id, name: name, players: players });
   }
   if (!lanes.length) return null;
-  const missing = DATA.players.filter(p => !used.has(p.id)).map(p => p.id);
-  if (missing.length) {
-    let pool = lanes.find(l => isPoolName(l.name));
-    if (!pool) { pool = { id: 'lane-pool', name: 'Niet gespeeld 2026', players: [] }; lanes.push(pool); }
-    for (const pid of missing) pool.players.push(pid);
+  const missing = DATA.players.filter(p => !used.has(p.id));
+  for (const player of missing) {
+    const team = (player.team || '').trim().toLowerCase();
+    let lane = lanes.find(l => l.name.trim().toLowerCase() === team);
+    if (!lane) {
+      lane = lanes.find(l => isPoolName(l.name));
+      if (!lane) { lane = { id: 'lane-pool', name: 'Niet gespeeld 2026', players: [] }; lanes.push(lane); }
+    }
+    lane.players.push(player.id);
   }
   return { version: 1, lanes: lanes };
 }
@@ -1502,7 +1508,13 @@ def main():
     ratings = load_ratings()
     players = load_players(ratings, xlsx_path)
     lanes = build_lanes(players)
-    data = {"players": players, "lanes": lanes}
+    # Fingerprint the dataset so the indeling page starts fresh when the
+    # ranking changes instead of reusing a stale saved layout.
+    build_id = hashlib.sha1(
+        json.dumps({"players": players, "lanes": lanes},
+                   ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:12]
+    data = {"players": players, "lanes": lanes, "build": build_id}
     plaintext = json.dumps(data, ensure_ascii=False)
 
     if args.encrypt or args.password:
