@@ -258,6 +258,8 @@ BASE_CSS = r"""
   .stat { text-align: center; }
   .stat b { display: block; font-size: 20px; line-height: 1; }
   .stat span { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); }
+  .stat.warn b { color: #e0483b; }
+  .stat.ok b { color: #2f9e7d; }
   .spacer { margin-left: auto; }
   .tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   input[type=search], select {
@@ -910,16 +912,19 @@ function renderStats() {
   const sds = DATA.players.map(p => p.sd).filter(v => v !== null);
   const best = sds.length ? Math.min.apply(null, sds) : null;
   const without = DATA.lanes.filter(l => l.noTeam).map(l => l.players.length)[0] || 0;
+  const teamLanes = DATA.lanes.filter(l => !l.noTeam);
+  const incomplete = teamLanes.filter(l => l.players.length < TEAM_SIZE).length;
   const items = [
     [DATA.players.length, 'spelers'],
     [DATA.lanes.length, 'teams'],
     [without, 'zonder team'],
+    [incomplete, 'niet compleet', incomplete ? 'warn' : 'ok'],
     [best === null ? '\u2013' : fmtSd(best), 'beste SD']
   ];
   const stats = document.getElementById('stats');
   for (const item of items) {
     const el = document.createElement('div');
-    el.className = 'stat';
+    el.className = 'stat' + (item[2] ? ' ' + item[2] : '');
     el.innerHTML = '<b>' + item[0] + '</b><span>' + item[1] + '</span>';
     stats.appendChild(el);
   }
@@ -1306,16 +1311,19 @@ function render() {
 }
 
 function renderStats(assigned) {
+  const teamLanes = state.lanes.filter(l => !isPoolName(l.name));
+  const incomplete = teamLanes.filter(l => l.players.length < TEAM_SIZE).length;
   const items = [
     [DATA.players.length, 'spelers'],
     [state.lanes.length, 'teams'],
-    [assigned, 'ingedeeld']
+    [assigned, 'ingedeeld'],
+    [incomplete, 'niet compleet', incomplete ? 'warn' : 'ok']
   ];
   const stats = document.getElementById('stats');
   stats.innerHTML = '';
   for (const item of items) {
     const el = document.createElement('div');
-    el.className = 'stat';
+    el.className = 'stat' + (item[2] ? ' ' + item[2] : '');
     el.innerHTML = '<b>' + item[0] + '</b><span>' + item[1] + '</span>';
     stats.appendChild(el);
   }
