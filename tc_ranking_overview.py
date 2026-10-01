@@ -381,7 +381,7 @@ BASE_CSS = r"""
     margin: 8px 2px 10px;
   }
   .spare-line::after {
-    content: 'reserve';
+    content: '6 players';
     position: absolute;
     top: -9px;
     left: 50%;
